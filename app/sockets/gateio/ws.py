@@ -1,14 +1,17 @@
 """Gate.io spot WebSocket client (book_ticker + ticker channels)."""
 import asyncio
 import json
+import logging
 import time
 from typing import List, Optional
 
 import aiohttp
 import websockets
-from websockets.exceptions import ConnectionClosedError
 
+from app.sockets.base import DEFAULT_READ_TIMEOUT, recv_with_timeout, run_socket_forever
 from app.sockets.gateio.symbols import gateio_symbols
+
+logger = logging.getLogger(__name__)
 
 GATEIO_WS_URL = "wss://api.gateio.ws/ws/v4/"
 GATEIO_PAIRS_URL = "https://api.gateio.ws/api/v4/spot/currency_pairs"
@@ -56,41 +59,50 @@ class GateioSocket:
         }
         await self.websocket.send(json.dumps(params))
 
+    async def subscribe(self) -> None:
+        await self.sub_book(pairs=self.symbols)
+
+    def handle_message(self, message: str) -> None:
+        stream = json.loads(message)
+        stream_name = stream.get("channel")
+        data = stream.get("result")
+
+        if data is None or stream.get("event") != "update":
+            return
+
+        if "book_ticker" in stream_name:
+            symbol = data.get("s")
+            ask, ask_q = data.get("a"), data.get("A")
+            bid, bid_q = data.get("b"), data.get("B")
+            logger.info(
+                "GATE.IO | %s | ASK: %s | ASKQ: %s | BID: %s | BIDQ: %s",
+                symbol, ask, ask_q, bid, bid_q,
+            )
+        elif stream_name == "spot.tickers":
+            symbol = data.get("currency_pair")
+            token_volume = data.get("base_volume")
+            usdt_volume = data.get("quote_volume")
+            logger.info(
+                "GATE.IO | %s | TOKEN_VOLUME: %s | USDT_VOLUME: %s",
+                symbol, token_volume, usdt_volume,
+            )
+
     async def view_messages(self) -> None:
-        try:
-            async for message in self.websocket:
-                stream = json.loads(message)
-                stream_name = stream.get("channel")
-                data = stream.get("result")
-
-                if data is None or stream.get("event") != "update":
-                    continue
-
-                if "book_ticker" in stream_name:
-                    symbol = data.get("s")
-                    ask, ask_q = data.get("a"), data.get("A")
-                    bid, bid_q = data.get("b"), data.get("B")
-                    print(f"GATE.IO | {symbol} | ASK: {ask} | ASKQ: {ask_q} | BID: {bid} | BIDQ: {bid_q}")
-                elif stream_name == "spot.tickers":
-                    symbol = data.get("currency_pair")
-                    token_volume = data.get("base_volume")
-                    usdt_volume = data.get("quote_volume")
-                    print(f"GATE.IO | {symbol} | TOKEN_VOLUME: {token_volume} | USDT_VOLUME: {usdt_volume}")
-        except ConnectionClosedError:
-            # Reconnect and re-subscribe on an unexpected close.
-            await self.connect()
-            await self.sub_book(pairs=self.symbols)
-            await self.view_messages()
-
-
-gateio = GateioSocket()
+        while True:
+            message = await recv_with_timeout(self.websocket, DEFAULT_READ_TIMEOUT)
+            self.handle_message(message)
 
 
 async def run_gateio() -> None:
-    await gateio.connect()
-    await gateio.sub_book(pairs=gateio.symbols)
-    await gateio.view_messages()
+    socket = GateioSocket()
+    await run_socket_forever(
+        "GATE.IO",
+        connect=socket.connect,
+        subscribe=socket.subscribe,
+        consume=socket.view_messages,
+    )
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     asyncio.run(run_gateio())

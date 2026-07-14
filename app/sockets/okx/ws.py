@@ -1,10 +1,14 @@
 """OKX spot WebSocket client (order-book top-5 + ticker)."""
 import asyncio
 import json
+import logging
 
 import websockets
 
+from app.sockets.base import DEFAULT_READ_TIMEOUT, recv_with_timeout, run_socket_forever
 from app.sockets.okx.symbols import okx_symbols
+
+logger = logging.getLogger(__name__)
 
 OKX_WS_URL = "wss://ws.okx.com:8443/ws/v5/public"
 
@@ -27,38 +31,51 @@ class OKXSocket:
     async def sub_book(self, pair: str) -> None:
         await self._subscribe("books5", pair)
 
+    async def subscribe(self) -> None:
+        for symbol in self.symbols:
+            await self.sub_book(symbol)
+            await self.sub_ticker(symbol)
+
+    def handle_message(self, message: str) -> None:
+        stream = json.loads(message)
+        stream_name = stream.get("arg", {}).get("channel", "")
+        data = stream.get("data", [None])[0]
+        if data is None:
+            return
+
+        symbol = data.get("instId")
+
+        if "books" in stream_name:
+            ask, ask_q = data["asks"][0][0], data["asks"][0][1]
+            bid, bid_q = data["bids"][0][0], data["bids"][0][1]
+            logger.info(
+                "OKX | %s | ASK: %s | ASKQ: %s | BID: %s | BIDQ: %s",
+                symbol, ask, ask_q, bid, bid_q,
+            )
+        elif "tickers" in stream_name:
+            token_volume = data.get("vol24h")
+            usdt_volume = data.get("volCcy24h")
+            logger.info(
+                "OKX | %s | TOKEN_VOLUME: %s | USDT_VOLUME: %s",
+                symbol, token_volume, usdt_volume,
+            )
+
     async def view_messages(self) -> None:
-        async for message in self.websocket:
-            stream = json.loads(message)
-            stream_name = stream.get("arg", {}).get("channel", "")
-            data = stream.get("data", [None])[0]
-            if data is None:
-                continue
-
-            symbol = data.get("instId")
-
-            if "books" in stream_name:
-                ask, ask_q = data["asks"][0][0], data["asks"][0][1]
-                bid, bid_q = data["bids"][0][0], data["bids"][0][1]
-                print(f"OKX | {symbol} | ASK: {ask} | ASKQ: {ask_q} | BID: {bid} | BIDQ: {bid_q}")
-            elif "tickers" in stream_name:
-                token_volume = data.get("vol24h")
-                usdt_volume = data.get("volCcy24h")
-                print(f"OKX | {symbol} | TOKEN_VOLUME: {token_volume} | USDT_VOLUME: {usdt_volume}")
-
-
-okx = OKXSocket()
+        while True:
+            message = await recv_with_timeout(self.websocket, DEFAULT_READ_TIMEOUT)
+            self.handle_message(message)
 
 
 async def run_okx() -> None:
-    await okx.connect()
-
-    for symbol in okx.symbols:
-        await okx.sub_book(symbol)
-        await okx.sub_ticker(symbol)
-
-    await okx.view_messages()
+    socket = OKXSocket()
+    await run_socket_forever(
+        "OKX",
+        connect=socket.connect,
+        subscribe=socket.subscribe,
+        consume=socket.view_messages,
+    )
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     asyncio.run(run_okx())

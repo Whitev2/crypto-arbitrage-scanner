@@ -1,10 +1,14 @@
 """Binance spot WebSocket client (best bid/ask + rolling ticker)."""
 import asyncio
 import json
+import logging
 
 import websockets
 
+from app.sockets.base import DEFAULT_READ_TIMEOUT, recv_with_timeout, run_socket_forever
 from app.sockets.binance.symbols import binance_symbols
+
+logger = logging.getLogger(__name__)
 
 BINANCE_WS_BASE = "wss://stream.binance.com:9443/stream?streams="
 
@@ -27,35 +31,52 @@ class BinanceSocket:
     async def connect(self) -> None:
         self.websocket = await websockets.connect(build_stream_url(self.symbols))
 
+    async def subscribe(self) -> None:
+        # Binance subscribes via the combined-stream URL, so nothing to send.
+        return None
+
+    def handle_message(self, message: str) -> None:
+        stream = json.loads(message)
+
+        stream_name = stream.get("stream", "")
+        data = stream.get("data", {})
+        symbol = data.get("s")
+
+        if "bookTicker" in stream_name:
+            ask = data.get("a")
+            ask_q = data.get("A")
+
+            bid = data.get("b")
+            bid_q = data.get("B")
+
+            logger.info(
+                "BINANCE | %s | ASK: %s | ASKQ: %s | BID: %s | BIDQ: %s",
+                symbol, ask, ask_q, bid, bid_q,
+            )
+        elif "ticker" in stream_name:
+            token_volume = data.get("v")
+            usdt_volume = data.get("q")
+            logger.info(
+                "BINANCE | %s | TOKEN_VOLUME: %s | USDT_VOLUME: %s",
+                symbol, token_volume, usdt_volume,
+            )
+
     async def view_messages(self) -> None:
-        async for message in self.websocket:
-            stream = json.loads(message)
-
-            stream_name = stream.get("stream", "")
-            data = stream.get("data", {})
-            symbol = data.get("s")
-
-            if "bookTicker" in stream_name:
-                ask = data.get("a")
-                ask_q = data.get("A")
-
-                bid = data.get("b")
-                bid_q = data.get("B")
-
-                print(f"BINANCE | {symbol} | ASK: {ask} | ASKQ: {ask_q} | BID: {bid} | BIDQ: {bid_q}")
-            elif "ticker" in stream_name:
-                token_volume = data.get("v")
-                usdt_volume = data.get("q")
-                print(f"BINANCE | {symbol} | TOKEN_VOLUME: {token_volume} | USDT_VOLUME: {usdt_volume}")
-
-
-binance = BinanceSocket()
+        while True:
+            message = await recv_with_timeout(self.websocket, DEFAULT_READ_TIMEOUT)
+            self.handle_message(message)
 
 
 async def run_binance() -> None:
-    await binance.connect()
-    await binance.view_messages()
+    socket = BinanceSocket()
+    await run_socket_forever(
+        "BINANCE",
+        connect=socket.connect,
+        subscribe=socket.subscribe,
+        consume=socket.view_messages,
+    )
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     asyncio.run(run_binance())

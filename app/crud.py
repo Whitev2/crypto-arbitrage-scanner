@@ -1,9 +1,14 @@
 """Persistence helpers for market data and detected opportunities."""
 import datetime
+import logging
 import uuid
+
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.database.postgres import postgres
 from app.models import SpreadOpportunity, Token
+
+logger = logging.getLogger(__name__)
 
 
 class TokenCrud:
@@ -17,20 +22,38 @@ class TokenCrud:
         bidQ: float,
         ts: float,
     ) -> None:
-        """Upsert the latest best bid/ask for an (exchange, symbol) pair."""
-        token = Token(
-            exchange=exchange,
-            symbol=symbol,
-            ask=float(ask),
-            askQ=float(askQ),
-            bid=float(bid),
-            bidQ=float(bidQ),
-            ts=datetime.datetime.fromtimestamp(ts),
+        """Upsert the latest best bid/ask for an (exchange, symbol) pair.
+
+        Uses a real PostgreSQL ``INSERT ... ON CONFLICT DO UPDATE`` keyed on the
+        ``(exchange, symbol)`` composite primary key. This is the correct async
+        SQLAlchemy 1.4 pattern: ``AsyncSession.merge`` requires a fully loaded
+        identity and issues an extra SELECT per call, whereas an upsert
+        statement is a single round-trip and is safe under concurrency.
+        """
+        values = {
+            "exchange": exchange,
+            "symbol": symbol,
+            "ask": float(ask),
+            "askQ": float(askQ),
+            "bid": float(bid),
+            "bidQ": float(bidQ),
+            "ts": datetime.datetime.fromtimestamp(ts),
+        }
+
+        stmt = pg_insert(Token).values(**values)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=[Token.exchange, Token.symbol],
+            set_={
+                "ask": stmt.excluded.ask,
+                "askQ": stmt.excluded.askQ,
+                "bid": stmt.excluded.bid,
+                "bidQ": stmt.excluded.bidQ,
+                "ts": stmt.excluded.ts,
+            },
         )
 
         async with postgres.async_session() as session:
-            # merge() performs an upsert on the composite primary key.
-            await session.merge(token)
+            await session.execute(stmt)
             await session.commit()
 
     @staticmethod
