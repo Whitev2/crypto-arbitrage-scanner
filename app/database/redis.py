@@ -1,4 +1,3 @@
-"""Async Redis cache used for fast, transient quote lookups."""
 import redis.asyncio as aioredis
 from redis.asyncio.connection import ConnectionPool
 

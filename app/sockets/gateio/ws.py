@@ -1,4 +1,3 @@
-"""Gate.io spot WebSocket client (book_ticker + ticker channels)."""
 import asyncio
 import json
 import logging
@@ -30,7 +29,6 @@ class GateioSocket:
         self.websocket = await websockets.connect(GATEIO_WS_URL)
 
     async def load_currency_pairs(self) -> None:
-        """Fetch the list of tradable pairs from the Gate.io REST API."""
         async with aiohttp.ClientSession() as session:
             async with session.get(GATEIO_PAIRS_URL) as resp:
                 self.pairs = await resp.json()

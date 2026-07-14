@@ -1,4 +1,3 @@
-"""Persistence helpers for market data and detected opportunities."""
 import datetime
 import logging
 import uuid
@@ -22,14 +21,7 @@ class TokenCrud:
         bidQ: float,
         ts: float,
     ) -> None:
-        """Upsert the latest best bid/ask for an (exchange, symbol) pair.
-
-        Uses a real PostgreSQL ``INSERT ... ON CONFLICT DO UPDATE`` keyed on the
-        ``(exchange, symbol)`` composite primary key. This is the correct async
-        SQLAlchemy 1.4 pattern: ``AsyncSession.merge`` requires a fully loaded
-        identity and issues an extra SELECT per call, whereas an upsert
-        statement is a single round-trip and is safe under concurrency.
-        """
+        # upsert по (exchange, symbol) — один round-trip, safe под конкуренцией
         values = {
             "exchange": exchange,
             "symbol": symbol,
@@ -65,7 +57,6 @@ class TokenCrud:
         sell_price: float,
         spread_pct: float,
     ) -> None:
-        """Persist a cross-exchange arbitrage opportunity."""
         opportunity = SpreadOpportunity(
             id=str(uuid.uuid4()),
             symbol=symbol,

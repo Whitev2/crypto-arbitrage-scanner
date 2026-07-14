@@ -1,4 +1,3 @@
-"""Binance spot WebSocket client (best bid/ask + rolling ticker)."""
 import asyncio
 import json
 import logging
@@ -14,7 +13,6 @@ BINANCE_WS_BASE = "wss://stream.binance.com:9443/stream?streams="
 
 
 def build_stream_url(symbols: list[str]) -> str:
-    """Build a combined-stream URL for bookTicker + ticker of every symbol."""
     streams = []
     for symbol in symbols:
         stream_symbol = symbol.replace("-", "").lower()
@@ -32,7 +30,7 @@ class BinanceSocket:
         self.websocket = await websockets.connect(build_stream_url(self.symbols))
 
     async def subscribe(self) -> None:
-        # Binance subscribes via the combined-stream URL, so nothing to send.
+        # binance подписывается через URL, слать нечего
         return None
 
     def handle_message(self, message: str) -> None:

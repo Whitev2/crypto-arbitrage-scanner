@@ -10,10 +10,9 @@ from alembic import context
 from app.config import settings
 from app.database.postgres import Base
 
-# Import models so their tables are registered on Base.metadata.
+# нужно импортнуть модели, чтобы таблицы попали в Base.metadata
 from app import models  # noqa: F401
 
-# Alembic Config object, providing access to values within the .ini file.
 config = context.config
 
 if config.config_file_name is not None:
@@ -21,7 +20,6 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
-# Feed the connection string from the application settings (env-driven).
 config.set_main_option("sqlalchemy.url", settings.DB_URL + "?async_fallback=True")
 
 

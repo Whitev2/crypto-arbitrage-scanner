@@ -1,12 +1,9 @@
-"""SQLAlchemy ORM models."""
 from sqlalchemy import Column, DateTime, Float, String
 
 from app.database.postgres import Base
 
 
 class Token(Base):
-    """Latest best bid/ask for a given (exchange, symbol) pair."""
-
     __tablename__ = "tokens"
 
     exchange = Column(String, primary_key=True)
@@ -22,8 +19,6 @@ class Token(Base):
 
 
 class SpreadOpportunity(Base):
-    """A cross-exchange arbitrage opportunity above the configured threshold."""
-
     __tablename__ = "spread_opportunities"
 
     id = Column(String, primary_key=True)

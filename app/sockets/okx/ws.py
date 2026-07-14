@@ -1,4 +1,3 @@
-"""OKX spot WebSocket client (order-book top-5 + ticker)."""
 import asyncio
 import json
 import logging

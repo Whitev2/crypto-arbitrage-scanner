@@ -1,4 +1,3 @@
-"""Huobi (HTX) spot WebSocket client (ticker channel, gzip framed)."""
 import asyncio
 import gzip
 import json
@@ -36,7 +35,7 @@ class HuobiSocket:
 
         stream = json.loads(message)
 
-        # Huobi requires a pong reply to keep the connection alive.
+        # huobi шлёт ping, надо ответить pong
         if stream.get("ping"):
             await self.websocket.send(json.dumps({"pong": stream["ping"]}))
             return

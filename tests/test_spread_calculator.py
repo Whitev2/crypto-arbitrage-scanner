@@ -1,9 +1,3 @@
-"""Unit tests for the pure spread-calculation logic.
-
-These cover the raw percentage maths, the currency/decimal parsing in
-``build_quote`` / ``_to_decimal``, the best-opportunity selection and the
-threshold gating in :class:`SpreadCalculator`.
-"""
 from decimal import Decimal
 
 import pytest
@@ -17,9 +11,6 @@ from app.spread.spread_calculator import (
 )
 
 
-# --------------------------------------------------------------------------- #
-# _to_decimal / build_quote (currency + decimal handling)
-# --------------------------------------------------------------------------- #
 class TestToDecimal:
     def test_parses_string_price(self):
         assert _to_decimal("123.45") == Decimal("123.45")
@@ -64,9 +55,6 @@ class TestBuildQuote:
         assert build_quote("okx", "BTC-USDT", ask="0", bid="100") is None
 
 
-# --------------------------------------------------------------------------- #
-# spread_pct (pure maths)
-# --------------------------------------------------------------------------- #
 class TestSpreadPct:
     def test_positive_spread(self):
         # buy at 100, sell at 110 -> +10%
@@ -83,9 +71,6 @@ class TestSpreadPct:
         assert SpreadCalculator.spread_pct(Decimal("200"), Decimal("201")) == Decimal("0.5")
 
 
-# --------------------------------------------------------------------------- #
-# best_opportunity (selection + threshold)
-# --------------------------------------------------------------------------- #
 class TestBestOpportunity:
     def test_finds_profitable_pair(self):
         calc = SpreadCalculator(threshold_pct=0.5)
@@ -154,9 +139,6 @@ class TestBestOpportunity:
         assert opp.spread_pct == Decimal("12")
 
 
-# --------------------------------------------------------------------------- #
-# scan (multi-symbol aggregation)
-# --------------------------------------------------------------------------- #
 class TestScan:
     def test_scan_collects_only_above_threshold(self):
         calc = SpreadCalculator(threshold_pct=2.0)

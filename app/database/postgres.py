@@ -1,4 +1,3 @@
-"""Async PostgreSQL access layer built on SQLAlchemy."""
 from contextlib import asynccontextmanager
 
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
@@ -10,8 +9,6 @@ Base = declarative_base()
 
 
 class Postgres:
-    """Thin wrapper around a single async engine and its session factory."""
-
     async_engine: AsyncEngine
 
     @classmethod

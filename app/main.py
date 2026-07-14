@@ -1,11 +1,3 @@
-"""Entry point: connect to every exchange feed and stream quotes concurrently.
-
-Each exchange client runs as an independent, supervised asyncio task. A crash
-in one exchange feed must never take the others down, so every client is
-wrapped in a supervisor that logs the failure and restarts it. Incoming quotes
-are persisted by the CRUD layer, and the spread calculator turns the aggregated
-book into cross-exchange arbitrage opportunities.
-"""
 import asyncio
 import logging
 
@@ -18,18 +10,11 @@ from app.sockets.okx.ws import run_okx
 
 logger = logging.getLogger(__name__)
 
-# How long to wait before restarting a supervised exchange task that returned
-# or raised. Kept small so a transient failure recovers quickly.
 RESTART_DELAY = 5.0
 
 
 async def supervise(name, factory) -> None:
-    """Run ``factory()`` forever, restarting (with logging) if it ever exits.
-
-    The individual clients already reconnect internally, so reaching this
-    handler means something unexpected happened; we still refuse to let a
-    single exchange bring down the process.
-    """
+    # одна биржа не должна ронять остальные — рестартим с логом
     while True:
         try:
             await factory()
@@ -53,8 +38,7 @@ async def main() -> None:
         "gateio": run_gateio,
     }
 
-    # return_exceptions=True is a belt-and-braces guard: each task is already
-    # individually supervised, so gather should never see one propagate.
+    # каждая таска уже под supervise, return_exceptions на всякий
     await asyncio.gather(
         *(supervise(name, factory) for name, factory in tasks.items()),
         return_exceptions=True,
