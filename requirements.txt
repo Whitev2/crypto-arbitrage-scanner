@@ -1,0 +1,13 @@
+# Core async stack
+websockets==11.0.3
+aiohttp==3.8.5
+
+# Persistence
+sqlalchemy==1.4.47
+asyncpg==0.27.0
+alembic==1.10.2
+greenlet==2.0.2
+redis==4.5.5
+
+# Configuration
+pydantic[dotenv]==1.10.7
